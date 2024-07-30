@@ -1,4 +1,5 @@
 import os
+import requests
 import threading
 import webbrowser
 import cv2
@@ -7,9 +8,26 @@ from ultralytics import YOLO
 import numpy as np
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'C:/Users/Luke.Czachor/V1VideoRayLC/D80Final723GOOD/uploads'
 
-model = YOLO('C:\\d10weights\\best.pt')
+# Set paths relative to the application directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'uploads')
+MODEL_WEIGHTS_PATH = os.path.join(BASE_DIR, 'weights', 'best.pt')
+WEIGHTS_URL = 'https://your-s3-bucket.s3.amazonaws.com/weights/model.pt'
+
+# Ensure weights directory exists
+if not os.path.exists(os.path.dirname(MODEL_WEIGHTS_PATH)):
+    os.makedirs(os.path.dirname(MODEL_WEIGHTS_PATH))
+
+# Download weights if they don't exist
+if not os.path.isfile(MODEL_WEIGHTS_PATH):
+    print("Model weights not found. Downloading...")
+    response = requests.get(WEIGHTS_URL)
+    with open(MODEL_WEIGHTS_PATH, 'wb') as f:
+        f.write(response.content)
+    print("Model weights downloaded.")
+
+model = YOLO(MODEL_WEIGHTS_PATH)
 
 # Designate Class names to a color (RGB decimal value)
 class_colors = {
@@ -64,8 +82,6 @@ def process_image():
         if results is None:
             return jsonify({'error': 'Model did not return results'}), 500
         
-        print("Model results:", results)
-
         items_identified = {}
         
         if isinstance(results, list):
@@ -102,10 +118,8 @@ def process_image():
                     font_thickness = max(2, min(3, int(font_scale)))  # Webcam adjustment
                 else:
                     border_thickness = max(5, min(10, int((x2 - x1) / 100)))  # File upload adjustment
-                    font_scale = max(7.0, min(2.0, (x2 - x1) / 100))  # File upload adjustment
-                    font_thickness = max(7, min(6, int(font_scale)))  # File upload adjustment
-
-                print(f"Drawing box: {(x1, y1, x2, y2)} with color {color}, border_thickness {border_thickness}, font_scale {font_scale}, font_thickness {font_thickness}")
+                    font_scale = max(1.0, min(2.0, (x2 - x1) / 100))  # File upload adjustment
+                    font_thickness = max(2, min(6, int(font_scale)))  # File upload adjustment
 
                 cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, border_thickness)
                 label = f'{class_name}: {conf_score:.2f}'
